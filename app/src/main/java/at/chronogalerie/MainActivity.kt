@@ -44,6 +44,9 @@ class MainActivity : Activity() {
    val where = "${MediaStore.Files.FileColumns.MEDIA_TYPE}=? OR ${MediaStore.Files.FileColumns.MEDIA_TYPE}=?"
    try {
     contentResolver.query(base, columns, where, arrayOf("1","3"), null)?.use { cursor ->
+     val total = cursor.count
+     var scanned = 0
+     runOnUiThread { status.text = "Erfasse Medien: 0 / $total · Noch $total · 0 %"; progress.progress = 0 }
      while (cursor.moveToNext()) {
       val taken = cursor.getLong(3)
       media.add(Triple(ContentUris.withAppendedId(base, cursor.getLong(0)), if (taken > 0) taken else cursor.getLong(4)*1000, cursor.getString(2) ?: "Foto"))
