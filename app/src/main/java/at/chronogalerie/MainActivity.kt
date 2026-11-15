@@ -29,6 +29,7 @@ class MainActivity : Activity() {
  private val favorites by lazy { getSharedPreferences("favorites", MODE_PRIVATE) }
  private var activeTab = 0
  private var showingViewer = false
+ private var gridColumns = 4
  private var scanGeneration = 0
  private var searchText = ""
  private var albumFilter: String? = null
@@ -153,7 +154,7 @@ class MainActivity : Activity() {
   galleryBody.removeAllViews()
   val row=LinearLayout(this)
   val grid=GridView(this).apply {
-   numColumns=4; horizontalSpacing=dp(2); verticalSpacing=dp(2)
+   numColumns=gridColumns; horizontalSpacing=dp(2); verticalSpacing=dp(2)
    setSelector(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
    isVerticalScrollBarEnabled=false
    adapter=object:BaseAdapter() {
@@ -162,7 +163,7 @@ class MainActivity : Activity() {
     override fun getItemId(position:Int)=position.toLong()
     override fun getView(position:Int,old:android.view.View?,parent:ViewGroup):android.view.View {
      val image=(old as? ImageView)?:ImageView(this@MainActivity).apply { scaleType=ImageView.ScaleType.CENTER_CROP; setBackgroundColor(Color.rgb(35,35,37)) }
-     image.layoutParams=AbsListView.LayoutParams(-1,(resources.displayMetrics.widthPixels-dp(if(timeline)94 else 10))/4)
+     image.layoutParams=AbsListView.LayoutParams(-1,(resources.displayMetrics.widthPixels-dp(if(timeline)94 else 10))/gridColumns)
      val uri=items[position].first
      val key=uri.toString()
      image.tag=key
@@ -196,6 +197,15 @@ class MainActivity : Activity() {
     override fun onStartTrackingTouch(s:SeekBar?) {}
     override fun onStopTrackingTouch(s:SeekBar?) {}
    })
+   grid.setOnScrollListener(object:AbsListView.OnScrollListener {
+    override fun onScrollStateChanged(view:AbsListView?,state:Int) {}
+    override fun onScroll(view:AbsListView?,first:Int,visible:Int,total:Int) {
+     if(markers.isEmpty() || first !in months.indices) return
+     val index=markers.indexOfLast { it.second<=first }.coerceAtLeast(0)
+     current.text=markers[index].first
+     if(!seek.isPressed) seek.progress=index
+    }
+   })
    row.addView(side,LinearLayout.LayoutParams(dp(82),-1))
   }
   galleryBody.addView(row)
@@ -204,10 +214,13 @@ class MainActivity : Activity() {
   showingViewer=true
   val screen=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.BLACK) }
   screen.addView(textView("‹    "+format.format(Date(item.second)),19f).apply { setPadding(dp(18),0,0,0); setOnClickListener { showingViewer=false; setContentView(host); showTab(activeTab) } },LinearLayout.LayoutParams(-1,dp(60)))
-  val image=ImageView(this).apply { scaleType=ImageView.ScaleType.FIT_CENTER }
+  val image=ImageView(this).apply { scaleType=ImageView.ScaleType.FIT_CENTER; setOnClickListener { val visible=actionsVisible; actionsVisible=!visible; bottomActions?.visibility=if(actionsVisible)View.VISIBLE else View.GONE } }
+  var actionsVisible=true
+  var bottomActions:LinearLayout?=null
   screen.addView(image,LinearLayout.LayoutParams(-1,0,1f))
   executor.execute { try { val bitmap=contentResolver.loadThumbnail(item.first,android.util.Size(1600,1600),null); runOnUiThread { image.setImageBitmap(bitmap) } } catch(_:Exception) {} }
   val actions=LinearLayout(this)
+  bottomActions=actions
   val fav=textView(if(favorites.getBoolean(item.first.toString(),false))"♥ Favorit" else "♡ Favorit").apply { gravity=android.view.Gravity.CENTER }
   fav.setOnClickListener { val value=!favorites.getBoolean(item.first.toString(),false); favorites.edit().putBoolean(item.first.toString(),value).apply(); fav.text=if(value)"♥ Favorit" else "♡ Favorit" }
   actions.addView(fav,LinearLayout.LayoutParams(0,dp(60),1f))
@@ -216,6 +229,9 @@ class MainActivity : Activity() {
   } },LinearLayout.LayoutParams(0,dp(60),1f))
   actions.addView(textView("⤢ Öffnen").apply { gravity=android.view.Gravity.CENTER; setOnClickListener {
    try { startActivity(Intent(Intent.ACTION_VIEW).apply { setDataAndType(item.first,contentResolver.getType(item.first)); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }) } catch(_:Exception) {}
+  } },LinearLayout.LayoutParams(0,dp(60),1f))
+  actions.addView(textView("ⓘ Info").apply { gravity=android.view.Gravity.CENTER; setOnClickListener {
+   android.app.AlertDialog.Builder(this@MainActivity).setTitle(item.third).setMessage("Aufnahme: "+format.format(Date(item.second))+"\nDatei: "+item.third+"\nTyp: "+(contentResolver.getType(item.first)?:"Unbekannt")).setPositiveButton("OK",null).show()
   } },LinearLayout.LayoutParams(0,dp(60),1f))
   screen.addView(actions); setContentView(screen)
  }
