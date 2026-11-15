@@ -32,6 +32,7 @@ class MainActivity : Activity() {
  private var showingViewer = false
  private var gridColumns = 4
  private var savedGridPosition = 0
+ private var viewerGeneration = 0
  private var lastGalleryScroll = 0
  private var visiblePhotos = listOf<Triple<android.net.Uri,Long,String>>()
  private var scanGeneration = 0
@@ -57,7 +58,7 @@ class MainActivity : Activity() {
   if (requestCode == 1) showGallery()
  }
  override fun onBackPressed() {
-  if (showingViewer) { showingViewer=false; setContentView(host); showTab(activeTab) }
+  if (showingViewer) { showingViewer=false; viewerGeneration++; setContentView(host); showTab(activeTab) }
   else if (activeTab != 0 || albumFilter != null || searchText.isNotEmpty()) { albumFilter=null; searchText=""; showTab(0) }
   else super.onBackPressed()
  }
@@ -218,13 +219,14 @@ class MainActivity : Activity() {
  }
  private fun viewer(item:Triple<android.net.Uri,Long,String>) {
   showingViewer=true
+  val viewerToken=++viewerGeneration
   var currentItem=item
   var currentIndex=visiblePhotos.indexOfFirst { it.first==currentItem.first }.coerceAtLeast(0)
   var startX=0f
   var startY=0f
   var requestId=0
   val screen=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.BLACK); fitsSystemWindows=true }
-  val heading=textView("‹    "+format.format(Date(currentItem.second)),19f).apply { setPadding(dp(18),0,0,0); setOnClickListener { showingViewer=false; setContentView(host); showTab(activeTab) } }
+  val heading=textView("‹    "+format.format(Date(currentItem.second)),19f).apply { setPadding(dp(18),0,0,0); setOnClickListener { showingViewer=false; viewerGeneration++; setContentView(host); showTab(activeTab) } }
   screen.addView(heading,LinearLayout.LayoutParams(-1,dp(60)))
   var actionsVisible=true
   var bottomActions:LinearLayout?=null
@@ -246,7 +248,7 @@ class MainActivity : Activity() {
    val id=++requestId
    executor.execute { try {
     val bitmap=contentResolver.loadThumbnail(photo.first,android.util.Size(2000,2000),null)
-    runOnUiThread { if(showingViewer && id==requestId) image.setImageBitmap(bitmap) }
+    runOnUiThread { if(showingViewer && viewerToken==viewerGeneration && id==requestId) image.setImageBitmap(bitmap) }
    } catch(_:Exception) {} }
   }
   image.setOnTouchListener { _,event ->
