@@ -131,10 +131,33 @@ class MainActivity : Activity() {
   when(index) {
    0 -> showGrid(allMedia.filter { (albumFilter?.let { name -> albums[name]?.contains(it) == true } ?: true) && (searchText.isEmpty() || it.third.contains(searchText,true) || monthFormat.format(Date(it.second)).contains(searchText,true)) },true)
    1 -> {
-    val scroll=ScrollView(this); val list=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(20),dp(10),dp(20),0) }
-    list.addView(textView("Alben",26f))
-    albums.toList().sortedByDescending { it.second.size }.forEach { (name,items) ->
-     list.addView(textView("▣   "+name+"   ("+items.size+")",19f).apply { setPadding(0,dp(22),0,dp(22)); setOnClickListener { albumFilter=name; showTab(0) } })
+    val scroll=ScrollView(this).apply { fillViewport=true }
+    val list=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(12),dp(12),dp(12),dp(20)) }
+    list.addView(textView("Alben",26f).apply { setPadding(dp(8),0,0,dp(16)) })
+    val albumList=albums.toList().sortedByDescending { it.second.size }
+    albumList.chunked(2).forEach { pair ->
+     val row=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
+     pair.forEach { (name,items) ->
+      val card=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(5),dp(5),dp(5),dp(14)); setOnClickListener { albumFilter=name; savedGridPosition=0; showTab(0) } }
+      val preview=ImageView(this).apply { scaleType=ImageView.ScaleType.CENTER_CROP; setBackgroundColor(Color.rgb(38,38,40)) }
+      card.addView(preview,LinearLayout.LayoutParams(-1,dp(155)))
+      card.addView(textView(name,16f).apply { setSingleLine(true); ellipsize=android.text.TextUtils.TruncateAt.END; setPadding(dp(3),dp(8),dp(3),0) })
+      card.addView(textView(items.size.toString()+" Elemente",12f).apply { setTextColor(Color.LTGRAY); setPadding(dp(3),0,0,0) })
+      row.addView(card,LinearLayout.LayoutParams(0,-2,1f))
+      val uri=items.maxByOrNull { it.second }?.first
+      if(uri!=null) {
+       val key=uri.toString()
+       val cached=cache.get(key)
+       if(cached!=null) preview.setImageBitmap(cached)
+       else executor.execute { try {
+        val bitmap=contentResolver.loadThumbnail(uri,android.util.Size(400,400),null)
+        cache.put(key,bitmap)
+        runOnUiThread { preview.setImageBitmap(bitmap) }
+       } catch(_:Exception) {} }
+      }
+     }
+     if(pair.size==1) row.addView(View(this),LinearLayout.LayoutParams(0,1,1f))
+     list.addView(row)
     }
     scroll.addView(list); galleryBody.addView(scroll)
    }
