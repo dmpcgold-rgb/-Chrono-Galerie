@@ -31,6 +31,8 @@ class MainActivity : Activity() {
  private var activeTab = 0
  private var showingViewer = false
  private var gridColumns = 4
+ private var savedGridPosition = 0
+ private var lastGalleryScroll = 0
  private var visiblePhotos = listOf<Triple<android.net.Uri,Long,String>>()
  private var scanGeneration = 0
  private var searchText = ""
@@ -182,9 +184,10 @@ class MainActivity : Activity() {
      return image
     }
    }
-   onItemClickListener=AdapterView.OnItemClickListener { _,_,position,_ -> viewer(items[position]) }
+   onItemClickListener=AdapterView.OnItemClickListener { _,_,position,_ -> savedGridPosition=firstVisiblePosition; viewer(items[position]) }
   }
   row.addView(grid,LinearLayout.LayoutParams(0,-1,1f))
+  if(timeline && savedGridPosition>0) grid.post { grid.setSelection(savedGridPosition.coerceAtMost((items.size-1).coerceAtLeast(0))) }
   if(timeline) {
    val months=items.map { monthFormat.format(Date(it.second)) }
    val markers=months.withIndex().filter { it.index==0 || it.value!=months[it.index-1] }.map { it.value to it.index }
@@ -226,9 +229,17 @@ class MainActivity : Activity() {
   var actionsVisible=true
   var bottomActions:LinearLayout?=null
   val image=ImageView(this).apply { scaleType=ImageView.ScaleType.FIT_CENTER }
+  val pinch=android.view.ScaleGestureDetector(this,object:android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
+   override fun onScale(detector:android.view.ScaleGestureDetector):Boolean {
+    image.scaleX=(image.scaleX*detector.scaleFactor).coerceIn(1f,4f)
+    image.scaleY=image.scaleX
+    return true
+   }
+  })
   var refreshFavorite: (() -> Unit)?=null
   fun showPhoto(photo:Triple<android.net.Uri,Long,String>) {
    currentItem=photo
+   image.scaleX=1f; image.scaleY=1f
    refreshFavorite?.invoke()
    heading.text="‹    "+format.format(Date(photo.second))
    image.setImageDrawable(null)
@@ -239,12 +250,14 @@ class MainActivity : Activity() {
    } catch(_:Exception) {} }
   }
   image.setOnTouchListener { _,event ->
+   pinch.onTouchEvent(event)
+   if(pinch.isInProgress || event.pointerCount>1) return@setOnTouchListener true
    when(event.actionMasked) {
     MotionEvent.ACTION_DOWN -> { startX=event.x; startY=event.y; true }
     MotionEvent.ACTION_UP -> {
      val dx=event.x-startX
      val dy=event.y-startY
-     if(kotlin.math.abs(dx)>dp(65) && kotlin.math.abs(dx)>kotlin.math.abs(dy)*1.3f) {
+     if(image.scaleX<=1.01f && kotlin.math.abs(dx)>dp(65) && kotlin.math.abs(dx)>kotlin.math.abs(dy)*1.3f) {
       val next=currentIndex+if(dx<0)1 else -1
       if(next in visiblePhotos.indices) { currentIndex=next; showPhoto(visiblePhotos[next]) }
      } else if(kotlin.math.abs(dx)<dp(20) && kotlin.math.abs(dy)<dp(20)) {
@@ -280,9 +293,18 @@ class MainActivity : Activity() {
   val input=EditText(this).apply { hint="Dateiname oder Monat"; setSingleLine(true) }
   android.app.AlertDialog.Builder(this).setTitle("Fotos suchen").setView(input).setPositiveButton("Suchen") { _,_ -> searchText=input.text.toString(); albumFilter=null; showTab(0) }.setNegativeButton("Abbrechen",null).show()
  }
+ private fun chooseGridSize() {
+  val options=arrayOf("3 Bilder pro Reihe","4 Bilder pro Reihe","5 Bilder pro Reihe","6 Bilder pro Reihe")
+  android.app.AlertDialog.Builder(this).setTitle("Rastergröße").setSingleChoiceItems(options,(gridColumns-3).coerceIn(0,3)) { dialog,choice ->
+   gridColumns=choice+3
+   savedGridPosition=0
+   dialog.dismiss()
+   showTab(0)
+  }.setNegativeButton("Abbrechen",null).show()
+ }
  private fun menu() {
-  android.app.AlertDialog.Builder(this).setItems(arrayOf("Suchen","Aktualisieren","Alle Fotos")) { _,i ->
-   when(i) { 0->search(); 1->showGallery(); else->{ albumFilter=null; searchText=""; showTab(0) } }
+  android.app.AlertDialog.Builder(this).setItems(arrayOf("Suchen","Aktualisieren","Rastergröße ändern","Alle Fotos")) { _,i ->
+   when(i) { 0->search(); 1->showGallery(); 2->chooseGridSize(); else->{ albumFilter=null; searchText=""; savedGridPosition=0; showTab(0) } }
   }.show()
  }
 }
