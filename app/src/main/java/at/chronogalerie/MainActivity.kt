@@ -109,7 +109,7 @@ class MainActivity : Activity() {
    },LinearLayout.LayoutParams(0,-1,1f))
   }
   when(index) {
-   0 -> showGrid(allMedia.filter { (albumFilter==null || albums[albumFilter]?.contains(it)==true) && (searchText.isEmpty() || it.third.contains(searchText,true) || monthFormat.format(Date(it.second)).contains(searchText,true)) },true)
+   0 -> showGrid(allMedia.filter { (albumFilter?.let { name -> albums[name]?.contains(it) == true } ?: true) && (searchText.isEmpty() || it.third.contains(searchText,true) || monthFormat.format(Date(it.second)).contains(searchText,true)) },true)
    1 -> {
     val scroll=ScrollView(this); val list=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(20),dp(10),dp(20),0) }
     list.addView(textView("Alben",26f))
