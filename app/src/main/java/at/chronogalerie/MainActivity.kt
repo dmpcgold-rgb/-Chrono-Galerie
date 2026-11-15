@@ -231,17 +231,23 @@ class MainActivity : Activity() {
   var actionsVisible=true
   var bottomActions:LinearLayout?=null
   val image=ImageView(this).apply { scaleType=ImageView.ScaleType.FIT_CENTER }
+  var panX=0f
+  var panY=0f
+  var lastTouchX=0f
+  var lastTouchY=0f
+  var dragging=false
   val pinch=android.view.ScaleGestureDetector(this,object:android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
    override fun onScale(detector:android.view.ScaleGestureDetector):Boolean {
     image.scaleX=(image.scaleX*detector.scaleFactor).coerceIn(1f,4f)
     image.scaleY=image.scaleX
+    if(image.scaleX<=1.01f) { panX=0f; panY=0f; image.translationX=0f; image.translationY=0f }
     return true
    }
   })
   var refreshFavorite: (() -> Unit)?=null
   fun showPhoto(photo:Triple<android.net.Uri,Long,String>) {
    currentItem=photo
-   image.scaleX=1f; image.scaleY=1f
+   image.scaleX=1f; image.scaleY=1f; image.translationX=0f; image.translationY=0f; panX=0f; panY=0f
    refreshFavorite?.invoke()
    heading.text="‹    "+format.format(Date(photo.second))
    image.setImageDrawable(null)
@@ -253,16 +259,31 @@ class MainActivity : Activity() {
   }
   image.setOnTouchListener { _,event ->
    pinch.onTouchEvent(event)
-   if(pinch.isInProgress || event.pointerCount>1) return@setOnTouchListener true
+   if(pinch.isInProgress || event.pointerCount>1) { dragging=false; return@setOnTouchListener true }
    when(event.actionMasked) {
-    MotionEvent.ACTION_DOWN -> { startX=event.x; startY=event.y; true }
+    MotionEvent.ACTION_DOWN -> { startX=event.x; startY=event.y; lastTouchX=event.x; lastTouchY=event.y; dragging=false; true }
+    MotionEvent.ACTION_MOVE -> {
+     if(image.scaleX>1.01f) {
+      val dx=event.x-lastTouchX
+      val dy=event.y-lastTouchY
+      if(kotlin.math.abs(dx)>1 || kotlin.math.abs(dy)>1) dragging=true
+      val limitX=image.width*(image.scaleX-1f)/2f
+      val limitY=image.height*(image.scaleY-1f)/2f
+      panX=(panX+dx).coerceIn(-limitX,limitX)
+      panY=(panY+dy).coerceIn(-limitY,limitY)
+      image.translationX=panX
+      image.translationY=panY
+     }
+     lastTouchX=event.x; lastTouchY=event.y
+     true
+    }
     MotionEvent.ACTION_UP -> {
      val dx=event.x-startX
      val dy=event.y-startY
      if(image.scaleX<=1.01f && kotlin.math.abs(dx)>dp(65) && kotlin.math.abs(dx)>kotlin.math.abs(dy)*1.3f) {
       val next=currentIndex+if(dx<0)1 else -1
       if(next in visiblePhotos.indices) { currentIndex=next; showPhoto(visiblePhotos[next]) }
-     } else if(kotlin.math.abs(dx)<dp(20) && kotlin.math.abs(dy)<dp(20)) {
+     } else if(!dragging && kotlin.math.abs(dx)<dp(20) && kotlin.math.abs(dy)<dp(20)) {
       actionsVisible=!actionsVisible
       bottomActions?.visibility=if(actionsVisible)View.VISIBLE else View.GONE
       heading.visibility=if(actionsVisible)View.VISIBLE else View.INVISIBLE
