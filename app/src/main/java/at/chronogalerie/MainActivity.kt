@@ -32,6 +32,8 @@ class MainActivity : Activity() {
   root.addView(heading)
   val status = TextView(this).apply { text = "Lade Medien …" }
   root.addView(status)
+  val progress = ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply { max = 100; progress = 0 }
+  root.addView(progress, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
   val scroll = ScrollView(this)
   val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
   scroll.addView(list); root.addView(scroll); setContentView(root)
@@ -45,11 +47,18 @@ class MainActivity : Activity() {
      while (cursor.moveToNext()) {
       val taken = cursor.getLong(3)
       media.add(Triple(ContentUris.withAppendedId(base, cursor.getLong(0)), if (taken > 0) taken else cursor.getLong(4)*1000, cursor.getString(2) ?: "Foto"))
+      scanned++
+      if (scanned % 50 == 0 || scanned == total) {
+       val done = scanned
+       val percent = if (total == 0) 100 else done * 100 / total
+       runOnUiThread { status.text = "Erfasse Medien: $done / $total · Noch ${total - done} · $percent %"; progress.progress = percent }
+      }
      }
     }
    } catch (_: SecurityException) {}
    runOnUiThread {
-    status.text = "${media.size} Medien · Neueste zuerst"
+    status.text = "Erfasst: ${media.size} / ${media.size} · Noch 0 · 100 %"
+    progress.progress = 100
     var previous = ""
     media.sortedByDescending { it.second }.forEach { item ->
      val day = format.format(Date(item.second))
@@ -60,7 +69,13 @@ class MainActivity : Activity() {
      row.addView(TextView(this).apply { text = item.third; setPadding(16,12,0,0) }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
      row.setOnClickListener { try { startActivity(Intent(Intent.ACTION_VIEW).apply { setDataAndType(item.first, contentResolver.getType(item.first)); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }) } catch (_: Exception) {} }
      list.addView(row)
-     try { thumb.setImageBitmap(contentResolver.loadThumbnail(item.first, android.util.Size(160,160), null)) } catch (_: Exception) {}
+     // Thumbnails are loaded separately to avoid blocking the main thread.
+     Thread {
+      try {
+       val bitmap = contentResolver.loadThumbnail(item.first, android.util.Size(160,160), null)
+       runOnUiThread { thumb.setImageBitmap(bitmap) }
+      } catch (_: Exception) {}
+     }.start()
     }
    }
   }.start()
