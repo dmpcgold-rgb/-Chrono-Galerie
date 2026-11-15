@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
+import android.view.View
 import android.view.ViewGroup
 import android.widget.*
 import android.graphics.Color
@@ -22,9 +23,13 @@ class MainActivity : Activity() {
  private val format = SimpleDateFormat("dd. MMMM yyyy", Locale.GERMAN)
  private val monthFormat = SimpleDateFormat("MMMM yyyy", Locale.GERMAN)
  private val executor = Executors.newFixedThreadPool(3)
- private val cache = object : LruCache<String, android.graphics.Bitmap>(120) {}
+ private val cache = object : LruCache<String, android.graphics.Bitmap>(24 * 1024) {
+  override fun sizeOf(key: String, value: android.graphics.Bitmap): Int = value.byteCount / 1024
+ }
  private val favorites by lazy { getSharedPreferences("favorites", MODE_PRIVATE) }
  private var activeTab = 0
+ private var showingViewer = false
+ private var scanGeneration = 0
  private var searchText = ""
  private var albumFilter: String? = null
  private var allMedia = listOf<Triple<android.net.Uri, Long, String>>()
@@ -38,15 +43,22 @@ class MainActivity : Activity() {
  private fun textView(t: String, size: Float = 16f) = TextView(this).apply { text=t; textSize=size; setTextColor(Color.WHITE); gravity=android.view.Gravity.CENTER_VERTICAL }
  override fun onCreate(savedInstanceState: Bundle?) {
   super.onCreate(savedInstanceState)
-  val permissions = if (Build.VERSION.SDK_INT >= 33) arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO) else arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+  val permissions = if (Build.VERSION.SDK_INT >= 34) arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) else if (Build.VERSION.SDK_INT >= 33) arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VIDEO) else arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
   val missing = permissions.filter { checkSelfPermission(it) != PackageManager.PERMISSION_GRANTED }
   if (missing.isNotEmpty()) requestPermissions(missing.toTypedArray(), 1) else showGallery()
  }
  override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
   super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-  showGallery()
+  if (requestCode == 1) showGallery()
+ }
+ override fun onBackPressed() {
+  if (showingViewer) { showingViewer=false; setContentView(host); showTab(activeTab) }
+  else if (activeTab != 0 || albumFilter != null || searchText.isNotEmpty()) { albumFilter=null; searchText=""; showTab(0) }
+  else super.onBackPressed()
  }
  private fun showGallery() {
+  showingViewer=false
+  val generation=++scanGeneration
   window.statusBarColor = Color.BLACK
   window.navigationBarColor = Color.BLACK
   host = LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.BLACK) }
@@ -87,13 +99,15 @@ class MainActivity : Activity() {
       }
      }
     }
-   } catch(_:Exception) {}
+   } catch(e:Exception) { runOnUiThread { if(generation==scanGeneration) galleryStatus.text="Fehler beim Einlesen: "+(e.message?:"Medienzugriff prüfen") } }
    loaded.sortByDescending { it.second }
    runOnUiThread {
+    if(generation!=scanGeneration) return@runOnUiThread
     allMedia=loaded
     albums=albumMap
     galleryStatus.text=loaded.size.toString()+" Medien · Neueste zuerst"
     galleryProgress.progress=100
+    galleryProgress.visibility=View.GONE
     showTab(activeTab)
    }
   }
@@ -140,6 +154,8 @@ class MainActivity : Activity() {
   val row=LinearLayout(this)
   val grid=GridView(this).apply {
    numColumns=4; horizontalSpacing=dp(2); verticalSpacing=dp(2)
+   setSelector(android.graphics.drawable.ColorDrawable(Color.TRANSPARENT))
+   isVerticalScrollBarEnabled=false
    adapter=object:BaseAdapter() {
     override fun getCount()=items.size
     override fun getItem(position:Int)=items[position]
@@ -185,8 +201,9 @@ class MainActivity : Activity() {
   galleryBody.addView(row)
  }
  private fun viewer(item:Triple<android.net.Uri,Long,String>) {
+  showingViewer=true
   val screen=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.BLACK) }
-  screen.addView(textView("‹    "+format.format(Date(item.second)),19f).apply { setPadding(dp(18),0,0,0); setOnClickListener { setContentView(host); showTab(activeTab) } },LinearLayout.LayoutParams(-1,dp(60)))
+  screen.addView(textView("‹    "+format.format(Date(item.second)),19f).apply { setPadding(dp(18),0,0,0); setOnClickListener { showingViewer=false; setContentView(host); showTab(activeTab) } },LinearLayout.LayoutParams(-1,dp(60)))
   val image=ImageView(this).apply { scaleType=ImageView.ScaleType.FIT_CENTER }
   screen.addView(image,LinearLayout.LayoutParams(-1,0,1f))
   executor.execute { try { val bitmap=contentResolver.loadThumbnail(item.first,android.util.Size(1600,1600),null); runOnUiThread { image.setImageBitmap(bitmap) } } catch(_:Exception) {} }
