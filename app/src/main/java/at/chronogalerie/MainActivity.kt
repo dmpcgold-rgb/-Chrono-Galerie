@@ -220,14 +220,16 @@ class MainActivity : Activity() {
   var startX=0f
   var startY=0f
   var requestId=0
-  val screen=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.BLACK) }
+  val screen=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.BLACK); fitsSystemWindows=true }
   val heading=textView("‹    "+format.format(Date(currentItem.second)),19f).apply { setPadding(dp(18),0,0,0); setOnClickListener { showingViewer=false; setContentView(host); showTab(activeTab) } }
   screen.addView(heading,LinearLayout.LayoutParams(-1,dp(60)))
   var actionsVisible=true
   var bottomActions:LinearLayout?=null
   val image=ImageView(this).apply { scaleType=ImageView.ScaleType.FIT_CENTER }
+  var refreshFavorite: (() -> Unit)?=null
   fun showPhoto(photo:Triple<android.net.Uri,Long,String>) {
    currentItem=photo
+   refreshFavorite?.invoke()
    heading.text="‹    "+format.format(Date(photo.second))
    image.setImageDrawable(null)
    val id=++requestId
@@ -260,6 +262,7 @@ class MainActivity : Activity() {
   val actions=LinearLayout(this)
   bottomActions=actions
   val fav=textView(if(favorites.getBoolean(currentItem.first.toString(),false))"♥ Favorit" else "♡ Favorit").apply { gravity=android.view.Gravity.CENTER }
+  refreshFavorite={ fav.text=if(favorites.getBoolean(currentItem.first.toString(),false))"♥ Favorit" else "♡ Favorit" }
   fav.setOnClickListener { val value=!favorites.getBoolean(currentItem.first.toString(),false); favorites.edit().putBoolean(currentItem.first.toString(),value).apply(); fav.text=if(value)"♥ Favorit" else "♡ Favorit" }
   actions.addView(fav,LinearLayout.LayoutParams(0,dp(60),1f))
   actions.addView(textView("↗ Teilen").apply { gravity=android.view.Gravity.CENTER; setOnClickListener {
