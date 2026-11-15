@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import android.view.View
+import android.view.MotionEvent
 import android.view.ViewGroup
 import android.widget.*
 import android.graphics.Color
@@ -30,6 +31,7 @@ class MainActivity : Activity() {
  private var activeTab = 0
  private var showingViewer = false
  private var gridColumns = 4
+ private var visiblePhotos = listOf<Triple<android.net.Uri,Long,String>>()
  private var scanGeneration = 0
  private var searchText = ""
  private var albumFilter: String? = null
@@ -62,7 +64,7 @@ class MainActivity : Activity() {
   val generation=++scanGeneration
   window.statusBarColor = Color.BLACK
   window.navigationBarColor = Color.BLACK
-  host = LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.BLACK) }
+  host = LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.BLACK); fitsSystemWindows=true }
   val header=LinearLayout(this).apply { gravity=android.view.Gravity.CENTER_VERTICAL; setPadding(dp(16),dp(8),dp(12),dp(8)) }
   header.addView(textView("Chrono Galerie",24f).apply { setTypeface(null,Typeface.BOLD) },LinearLayout.LayoutParams(0,dp(50),1f))
   header.addView(textView("⌕",30f).apply { gravity=android.view.Gravity.CENTER; setOnClickListener { search() } },LinearLayout.LayoutParams(dp(48),dp(50)))
@@ -74,8 +76,8 @@ class MainActivity : Activity() {
   host.addView(galleryProgress,LinearLayout.LayoutParams(-1,dp(3)))
   galleryBody=FrameLayout(this)
   host.addView(galleryBody,LinearLayout.LayoutParams(-1,0,1f))
-  navigation=LinearLayout(this).apply { setBackgroundColor(Color.rgb(44,44,46)) }
-  host.addView(navigation,LinearLayout.LayoutParams(-1,dp(70)))
+  navigation=LinearLayout(this).apply { setBackgroundColor(Color.rgb(44,44,46)); setPadding(0,dp(5),0,dp(14)) }
+  host.addView(navigation,LinearLayout.LayoutParams(-1,dp(88)))
   setContentView(host)
   showTab(0)
   executor.execute {
@@ -151,6 +153,7 @@ class MainActivity : Activity() {
   }
  }
  private fun showGrid(items:List<Triple<android.net.Uri,Long,String>>,timeline:Boolean) {
+  visiblePhotos=items
   galleryBody.removeAllViews()
   val row=LinearLayout(this)
   val grid=GridView(this).apply {
@@ -212,26 +215,61 @@ class MainActivity : Activity() {
  }
  private fun viewer(item:Triple<android.net.Uri,Long,String>) {
   showingViewer=true
+  var currentItem=item
+  var currentIndex=visiblePhotos.indexOfFirst { it.first==currentItem.first }.coerceAtLeast(0)
+  var startX=0f
+  var startY=0f
+  var requestId=0
   val screen=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.BLACK) }
-  screen.addView(textView("‹    "+format.format(Date(item.second)),19f).apply { setPadding(dp(18),0,0,0); setOnClickListener { showingViewer=false; setContentView(host); showTab(activeTab) } },LinearLayout.LayoutParams(-1,dp(60)))
+  val heading=textView("‹    "+format.format(Date(currentItem.second)),19f).apply { setPadding(dp(18),0,0,0); setOnClickListener { showingViewer=false; setContentView(host); showTab(activeTab) } }
+  screen.addView(heading,LinearLayout.LayoutParams(-1,dp(60)))
   var actionsVisible=true
   var bottomActions:LinearLayout?=null
-  val image=ImageView(this).apply { scaleType=ImageView.ScaleType.FIT_CENTER; setOnClickListener { actionsVisible=!actionsVisible; bottomActions?.visibility=if(actionsVisible)View.VISIBLE else View.GONE } }
+  val image=ImageView(this).apply { scaleType=ImageView.ScaleType.FIT_CENTER }
+  fun showPhoto(photo:Triple<android.net.Uri,Long,String>) {
+   currentItem=photo
+   heading.text="‹    "+format.format(Date(photo.second))
+   image.setImageDrawable(null)
+   val id=++requestId
+   executor.execute { try {
+    val bitmap=contentResolver.loadThumbnail(photo.first,android.util.Size(2000,2000),null)
+    runOnUiThread { if(showingViewer && id==requestId) image.setImageBitmap(bitmap) }
+   } catch(_:Exception) {} }
+  }
+  image.setOnTouchListener { _,event ->
+   when(event.actionMasked) {
+    MotionEvent.ACTION_DOWN -> { startX=event.x; startY=event.y; true }
+    MotionEvent.ACTION_UP -> {
+     val dx=event.x-startX
+     val dy=event.y-startY
+     if(kotlin.math.abs(dx)>dp(65) && kotlin.math.abs(dx)>kotlin.math.abs(dy)*1.3f) {
+      val next=currentIndex+if(dx<0)1 else -1
+      if(next in visiblePhotos.indices) { currentIndex=next; showPhoto(visiblePhotos[next]) }
+     } else if(kotlin.math.abs(dx)<dp(20) && kotlin.math.abs(dy)<dp(20)) {
+      actionsVisible=!actionsVisible
+      bottomActions?.visibility=if(actionsVisible)View.VISIBLE else View.GONE
+      heading.visibility=if(actionsVisible)View.VISIBLE else View.INVISIBLE
+     }
+     true
+    }
+    else -> true
+   }
+  }
   screen.addView(image,LinearLayout.LayoutParams(-1,0,1f))
-  executor.execute { try { val bitmap=contentResolver.loadThumbnail(item.first,android.util.Size(1600,1600),null); runOnUiThread { image.setImageBitmap(bitmap) } } catch(_:Exception) {} }
+  showPhoto(item)
   val actions=LinearLayout(this)
   bottomActions=actions
-  val fav=textView(if(favorites.getBoolean(item.first.toString(),false))"♥ Favorit" else "♡ Favorit").apply { gravity=android.view.Gravity.CENTER }
-  fav.setOnClickListener { val value=!favorites.getBoolean(item.first.toString(),false); favorites.edit().putBoolean(item.first.toString(),value).apply(); fav.text=if(value)"♥ Favorit" else "♡ Favorit" }
+  val fav=textView(if(favorites.getBoolean(currentItem.first.toString(),false))"♥ Favorit" else "♡ Favorit").apply { gravity=android.view.Gravity.CENTER }
+  fav.setOnClickListener { val value=!favorites.getBoolean(currentItem.first.toString(),false); favorites.edit().putBoolean(currentItem.first.toString(),value).apply(); fav.text=if(value)"♥ Favorit" else "♡ Favorit" }
   actions.addView(fav,LinearLayout.LayoutParams(0,dp(60),1f))
   actions.addView(textView("↗ Teilen").apply { gravity=android.view.Gravity.CENTER; setOnClickListener {
-   startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply { type=contentResolver.getType(item.first)?:"image/*"; putExtra(Intent.EXTRA_STREAM,item.first); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) },"Teilen"))
+   startActivity(Intent.createChooser(Intent(Intent.ACTION_SEND).apply { type=contentResolver.getType(currentItem.first)?:"image/*"; putExtra(Intent.EXTRA_STREAM,currentItem.first); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) },"Teilen"))
   } },LinearLayout.LayoutParams(0,dp(60),1f))
   actions.addView(textView("⤢ Öffnen").apply { gravity=android.view.Gravity.CENTER; setOnClickListener {
-   try { startActivity(Intent(Intent.ACTION_VIEW).apply { setDataAndType(item.first,contentResolver.getType(item.first)); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }) } catch(_:Exception) {}
+   try { startActivity(Intent(Intent.ACTION_VIEW).apply { setDataAndType(currentItem.first,contentResolver.getType(currentItem.first)); addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) }) } catch(_:Exception) {}
   } },LinearLayout.LayoutParams(0,dp(60),1f))
   actions.addView(textView("ⓘ Info").apply { gravity=android.view.Gravity.CENTER; setOnClickListener {
-   android.app.AlertDialog.Builder(this@MainActivity).setTitle(item.third).setMessage("Aufnahme: "+format.format(Date(item.second))+"\nDatei: "+item.third+"\nTyp: "+(contentResolver.getType(item.first)?:"Unbekannt")).setPositiveButton("OK",null).show()
+   android.app.AlertDialog.Builder(this@MainActivity).setTitle(currentItem.third).setMessage("Aufnahme: "+format.format(Date(currentItem.second))+"\nDatei: "+currentItem.third+"\nTyp: "+(contentResolver.getType(currentItem.first)?:"Unbekannt")).setPositiveButton("OK",null).show()
   } },LinearLayout.LayoutParams(0,dp(60),1f))
   screen.addView(actions); setContentView(screen)
  }
