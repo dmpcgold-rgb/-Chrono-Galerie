@@ -214,9 +214,9 @@ class MainActivity : Activity() {
   showingViewer=true
   val screen=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.BLACK) }
   screen.addView(textView("‹    "+format.format(Date(item.second)),19f).apply { setPadding(dp(18),0,0,0); setOnClickListener { showingViewer=false; setContentView(host); showTab(activeTab) } },LinearLayout.LayoutParams(-1,dp(60)))
-  val image=ImageView(this).apply { scaleType=ImageView.ScaleType.FIT_CENTER; setOnClickListener { val visible=actionsVisible; actionsVisible=!visible; bottomActions?.visibility=if(actionsVisible)View.VISIBLE else View.GONE } }
   var actionsVisible=true
   var bottomActions:LinearLayout?=null
+  val image=ImageView(this).apply { scaleType=ImageView.ScaleType.FIT_CENTER; setOnClickListener { actionsVisible=!actionsVisible; bottomActions?.visibility=if(actionsVisible)View.VISIBLE else View.GONE } }
   screen.addView(image,LinearLayout.LayoutParams(-1,0,1f))
   executor.execute { try { val bitmap=contentResolver.loadThumbnail(item.first,android.util.Size(1600,1600),null); runOnUiThread { image.setImageBitmap(bitmap) } } catch(_:Exception) {} }
   val actions=LinearLayout(this)
