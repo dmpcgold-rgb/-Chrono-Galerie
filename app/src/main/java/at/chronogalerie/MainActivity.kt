@@ -36,7 +36,16 @@ class MainActivity : Activity() {
   root.addView(progress, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
   val scroll = ScrollView(this)
   val list = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL }
-  scroll.addView(list); root.addView(scroll); setContentView(root)
+  val galleryArea = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
+  galleryArea.addView(scroll, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f))
+  val timeline = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; gravity = android.view.Gravity.CENTER }
+  val timelineLabel = TextView(this).apply { text = "Jahr\nMonat"; textSize = 12f; gravity = android.view.Gravity.CENTER }
+  timeline.addView(timelineLabel)
+  val yearSeek = SeekBar(this).apply { rotation = 270f }
+  timeline.addView(yearSeek, LinearLayout.LayoutParams(76, 260))
+  galleryArea.addView(timeline, LinearLayout.LayoutParams(94, ViewGroup.LayoutParams.MATCH_PARENT))
+  root.addView(galleryArea, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f))
+  setContentView(root)
   Thread {
    val media = mutableListOf<Triple<android.net.Uri, Long, String>>()
    val base = MediaStore.Files.getContentUri("external")
@@ -62,8 +71,18 @@ class MainActivity : Activity() {
    runOnUiThread {
     status.text = "Erfasst: ${media.size} / ${media.size} · Noch 0 · 100 %"
     progress.progress = 100
+    val monthFormat = SimpleDateFormat("MMMM yyyy", Locale.GERMAN)
+    val monthTargets = mutableListOf<Pair<String, Int>>()
+    var previousMonth = ""
     var previous = ""
     media.sortedByDescending { it.second }.forEach { item ->
+     val month = monthFormat.format(Date(item.second))
+     if (month != previousMonth) {
+      val marker = TextView(this).apply { text = month; textSize = 24f; setPadding(0, 24, 0, 10) }
+      list.addView(marker)
+      monthTargets.add(month to list.childCount - 1)
+      previousMonth = month
+     }
      val day = format.format(Date(item.second))
      if (day != previous) { list.addView(TextView(this).apply { text = day; textSize = 20f; setPadding(0, 18, 0, 8) }); previous = day }
      val row = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL }
@@ -80,6 +99,21 @@ class MainActivity : Activity() {
       } catch (_: Exception) {}
      }.start()
     }
+    yearSeek.max = (monthTargets.size - 1).coerceAtLeast(0)
+    yearSeek.progress = 0
+    if (monthTargets.isNotEmpty()) timelineLabel.text = monthTargets.first().first
+    yearSeek.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+     override fun onProgressChanged(seekBar: SeekBar?, value: Int, fromUser: Boolean) {
+      if (!fromUser || monthTargets.isEmpty()) return
+      val index = value.coerceIn(0, monthTargets.lastIndex)
+      val (label, childIndex) = monthTargets[index]
+      timelineLabel.text = label
+      val target = list.getChildAt(childIndex)
+      scroll.post { scroll.smoothScrollTo(0, target.top) }
+     }
+     override fun onStartTrackingTouch(seekBar: SeekBar?) {}
+     override fun onStopTrackingTouch(seekBar: SeekBar?) {}
+    })
    }
   }.start()
  }
