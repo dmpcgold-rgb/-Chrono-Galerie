@@ -389,6 +389,41 @@ class MainActivity : Activity() {
     runOnUiThread { if(showingViewer && viewerToken==viewerGeneration && id==requestId) image.setImageBitmap(bitmap) }
    } catch(_:Exception) {} }
   }
+  // VideoView consumes touches itself; handle horizontal swipes here too.
+  // Keep short taps available for the native playback controller.
+  player.setOnTouchListener { _,event ->
+   when(event.actionMasked) {
+    MotionEvent.ACTION_DOWN -> {
+     startX=event.x; startY=event.y
+     true
+    }
+    MotionEvent.ACTION_UP -> {
+     val dx=event.x-startX
+     val dy=event.y-startY
+     if(kotlin.math.abs(dx)>dp(65) && kotlin.math.abs(dx)>kotlin.math.abs(dy)*1.3f && !switchingPhoto) {
+      val next=currentIndex+if(dx<0) 1 else -1
+      if(next in visiblePhotos.indices) {
+       switchingPhoto=true
+       val direction=if(dx<0) -1 else 1
+       player.animate().cancel()
+       player.animate().translationX(direction*dp(95).toFloat()).alpha(0.3f).setDuration(110).withEndAction {
+        player.translationX=0f
+        player.alpha=1f
+        currentIndex=next
+        showPhoto(visiblePhotos[next])
+        switchingPhoto=false
+       }.start()
+      }
+     } else if(kotlin.math.abs(dx)<dp(20) && kotlin.math.abs(dy)<dp(20)) {
+      playback.show(3000)
+      if(!player.isPlaying) playOverlay.visibility=View.VISIBLE
+     }
+     true
+    }
+    MotionEvent.ACTION_CANCEL -> true
+    else -> true
+   }
+  }
   image.setOnTouchListener { _,event ->
    pinch.onTouchEvent(event)
    if(pinch.isInProgress || event.pointerCount>1) { dragging=false; return@setOnTouchListener true }
