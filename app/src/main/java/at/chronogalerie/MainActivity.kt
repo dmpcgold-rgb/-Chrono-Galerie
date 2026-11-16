@@ -253,11 +253,23 @@ class MainActivity : Activity() {
   var startY=0f
   var requestId=0
   val screen=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.BLACK); fitsSystemWindows=true }
-  val heading=textView("‹    "+format.format(Date(currentItem.second)),19f).apply { setPadding(dp(18),0,0,0); setOnClickListener { showingViewer=false; viewerGeneration++; setContentView(host); showTab(activeTab) } }
+  val heading=textView("‹    "+format.format(Date(currentItem.second)),19f).apply { setPadding(dp(18),0,0,0); setOnClickListener { player.stopPlayback(); showingViewer=false; viewerGeneration++; setContentView(host); showTab(activeTab) } }
   screen.addView(heading,LinearLayout.LayoutParams(-1,dp(60)))
   var actionsVisible=true
   var bottomActions:LinearLayout?=null
   val image=ImageView(this).apply { scaleType=ImageView.ScaleType.FIT_CENTER }
+  val mediaFrame=FrameLayout(this)
+  val player=VideoView(this).apply { visibility=View.GONE }
+  val playback=MediaController(this).apply { setAnchorView(player) }
+  player.setMediaController(playback)
+  mediaFrame.addView(image,FrameLayout.LayoutParams(-1,-1))
+  mediaFrame.addView(player,FrameLayout.LayoutParams(-1,-1))
+  fun stopPlayback() { player.stopPlayback(); player.visibility=View.GONE; image.visibility=View.VISIBLE }
+  player.setOnErrorListener { _,_,_ ->
+   android.widget.Toast.makeText(this@MainActivity,"Video kann nicht abgespielt werden",android.widget.Toast.LENGTH_SHORT).show()
+   stopPlayback()
+   true
+  }
   var panX=0f
   var panY=0f
   var lastTouchX=0f
@@ -274,12 +286,26 @@ class MainActivity : Activity() {
   })
   var refreshFavorite: (() -> Unit)?=null
   fun showPhoto(photo:Triple<android.net.Uri,Long,String>) {
+   stopPlayback()
    currentItem=photo
    image.scaleX=1f; image.scaleY=1f; image.translationX=0f; image.translationY=0f; panX=0f; panY=0f
    refreshFavorite?.invoke()
    heading.text="‹    "+format.format(Date(photo.second))
    image.setImageDrawable(null)
    val id=++requestId
+   if(videoUris.contains(photo.first)) {
+    player.visibility=View.VISIBLE
+    image.visibility=View.GONE
+    player.setVideoURI(photo.first)
+    player.setOnPreparedListener { mp ->
+     if(showingViewer && viewerToken==viewerGeneration && id==requestId) {
+      mp.isLooping=false
+      player.start()
+      playback.show(3000)
+     }
+    }
+    return
+   }
    executor.execute { try {
     val uri=photo.first
     val bitmap=if(contentResolver.getType(uri)?.startsWith("video/")==true) {
@@ -353,7 +379,7 @@ class MainActivity : Activity() {
     else -> true
    }
   }
-  screen.addView(image,LinearLayout.LayoutParams(-1,0,1f))
+  screen.addView(mediaFrame,LinearLayout.LayoutParams(-1,0,1f))
   showPhoto(item)
   val actions=LinearLayout(this)
   bottomActions=actions
