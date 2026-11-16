@@ -222,7 +222,7 @@ class MainActivity : Activity() {
    side.addView(seek,LinearLayout.LayoutParams(dp(74),dp(270)))
    seek.setOnSeekBarChangeListener(object:SeekBar.OnSeekBarChangeListener {
     override fun onProgressChanged(s:SeekBar?,value:Int,fromUser:Boolean) {
-     if(fromUser && markers.isNotEmpty()) { val pair=markers[value.coerceIn(0,markers.lastIndex)]; current.text=pair.first; grid.setSelection(pair.second) }
+     if(fromUser && markers.isNotEmpty()) { val pair=markers[(markers.lastIndex-value).coerceIn(0,markers.lastIndex)]; current.text=pair.first; grid.setSelection(pair.second) }
     }
     override fun onStartTrackingTouch(s:SeekBar?) {}
     override fun onStopTrackingTouch(s:SeekBar?) {}
@@ -233,7 +233,7 @@ class MainActivity : Activity() {
      if(markers.isEmpty() || first !in months.indices) return
      val index=markers.indexOfLast { it.second<=first }.coerceAtLeast(0)
      current.text=markers[index].first
-     if(!seek.isPressed) seek.progress=index
+     if(!seek.isPressed) seek.progress=markers.lastIndex-index
     }
    })
    row.addView(side,LinearLayout.LayoutParams(dp(82),-1))
