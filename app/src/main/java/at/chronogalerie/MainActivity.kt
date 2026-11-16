@@ -249,7 +249,7 @@ class MainActivity : Activity() {
    val months=items.map { monthFormat.format(Date(it.second)) }
    val markers=months.withIndex().filter { it.index==0 || it.value!=months[it.index-1] }.map { it.value to it.index }
    val side=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=android.view.Gravity.CENTER; background=rounded(Color.rgb(22,19,35),15) }
-   val current=textView(markers.firstOrNull()?.first?:"Jahr\\nMonat",11f).apply { gravity=android.view.Gravity.CENTER; setTextColor(accent) }
+   val current=textView(markers.firstOrNull()?.first?:"Jahr\nMonat",11f).apply { gravity=android.view.Gravity.CENTER; setTextColor(accent) }
    side.addView(current,LinearLayout.LayoutParams(dp(74),dp(52)))
    val timelineArea=FrameLayout(this)
    val seek=SeekBar(this).apply {
@@ -258,14 +258,18 @@ class MainActivity : Activity() {
     progressTintList=android.content.res.ColorStateList.valueOf(accent)
     thumbTintList=android.content.res.ColorStateList.valueOf(accent)
    }
-   timelineArea.addView(seek,FrameLayout.LayoutParams(dp(260),dp(48),android.view.Gravity.CENTER).apply { })
-   val years=markers.map { it.first.substringAfterLast(" ") }.distinct()
-   val labels=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=android.view.Gravity.CENTER }
-   years.take(7).forEach { year ->
-    labels.addView(textView(year,11f).apply { gravity=android.view.Gravity.CENTER; setTextColor(Color.rgb(205,195,225)) },LinearLayout.LayoutParams(-1,0,1f))
+   val yearPositions=markers.withIndex().filter { it.index==0 || it.value.first.substringAfterLast(" ")!=markers[it.index-1].first.substringAfterLast(" ") }
+   val labelLayer=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=android.view.Gravity.CENTER }
+   val displayedYears=yearPositions.take(9)
+   displayedYears.forEach { entry ->
+    labelLayer.addView(textView(entry.value.first.substringAfterLast(" "),10f).apply {
+     gravity=android.view.Gravity.CENTER
+     setTextColor(Color.rgb(205,195,225))
+    },LinearLayout.LayoutParams(-1,0,1f))
    }
-   side.addView(labels,LinearLayout.LayoutParams(dp(74),dp(170)))
-   side.addView(timelineArea,LinearLayout.LayoutParams(dp(74),dp(270)))
+   timelineArea.addView(labelLayer,FrameLayout.LayoutParams(dp(74),-1,android.view.Gravity.CENTER))
+   timelineArea.addView(seek,FrameLayout.LayoutParams(dp(260),dp(48),android.view.Gravity.CENTER))
+   side.addView(timelineArea,LinearLayout.LayoutParams(dp(74),0,1f))
    seek.setOnSeekBarChangeListener(object:SeekBar.OnSeekBarChangeListener {
     override fun onProgressChanged(s:SeekBar?,value:Int,fromUser:Boolean) {
      if(fromUser && markers.isNotEmpty()) { val pair=markers[(markers.lastIndex-value).coerceIn(0,markers.lastIndex)]; current.text=pair.first; grid.setSelection(pair.second) }
