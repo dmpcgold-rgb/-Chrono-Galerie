@@ -46,6 +46,9 @@ class MainActivity : Activity() {
  private lateinit var navigation: LinearLayout
  private lateinit var galleryStatus: TextView
  private lateinit var galleryProgress: ProgressBar
+ private val accent=Color.rgb(167,91,255)
+ private fun rounded(color:Int,radius:Int):android.graphics.drawable.GradientDrawable =
+  android.graphics.drawable.GradientDrawable().apply { setColor(color); cornerRadius=dp(radius).toFloat() }
  private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
  private fun textView(t: String, size: Float = 16f) = TextView(this).apply { text=t; textSize=size; setTextColor(Color.WHITE); gravity=android.view.Gravity.CENTER_VERTICAL }
  override fun onCreate(savedInstanceState: Bundle?) {
@@ -68,19 +71,21 @@ class MainActivity : Activity() {
   val generation=++scanGeneration
   window.statusBarColor = Color.BLACK
   window.navigationBarColor = Color.BLACK
-  host = LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.BLACK); fitsSystemWindows=true }
+  host = LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.rgb(11,11,20)); fitsSystemWindows=true }
   val header=LinearLayout(this).apply { gravity=android.view.Gravity.CENTER_VERTICAL; setPadding(dp(16),dp(8),dp(12),dp(8)) }
-  header.addView(textView("Chrono Galerie",24f).apply { setTypeface(null,Typeface.BOLD) },LinearLayout.LayoutParams(0,dp(50),1f))
+  header.addView(ImageView(this).apply { setImageResource(at.chronogalerie.R.drawable.chrono_icon); scaleType=ImageView.ScaleType.FIT_CENTER },LinearLayout.LayoutParams(dp(42),dp(42)))
+  header.addView(textView("Chrono Galerie",23f).apply { setTypeface(null,Typeface.BOLD) },LinearLayout.LayoutParams(0,dp(50),1f))
   header.addView(textView("⌕",30f).apply { gravity=android.view.Gravity.CENTER; setOnClickListener { search() } },LinearLayout.LayoutParams(dp(48),dp(50)))
   header.addView(textView("⋮",28f).apply { gravity=android.view.Gravity.CENTER; setOnClickListener { menu() } },LinearLayout.LayoutParams(dp(36),dp(50)))
   host.addView(header)
-  galleryStatus=textView("Bilder werden geladen …",12f).apply { setPadding(dp(16),0,0,0) }
+  galleryStatus=textView("Bilder werden geladen …",12f).apply { setTextColor(Color.rgb(195,181,216)); setPadding(dp(16),0,0,0) }
   host.addView(galleryStatus)
   galleryProgress=ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal).apply { max=100 }
+  galleryProgress.progressTintList=android.content.res.ColorStateList.valueOf(accent)
   host.addView(galleryProgress,LinearLayout.LayoutParams(-1,dp(3)))
   galleryBody=FrameLayout(this)
   host.addView(galleryBody,LinearLayout.LayoutParams(-1,0,1f))
-  navigation=LinearLayout(this).apply { setBackgroundColor(Color.rgb(44,44,46)); setPadding(0,dp(5),0,dp(14)) }
+  navigation=LinearLayout(this).apply { background=rounded(Color.rgb(24,22,38),22); setPadding(dp(5),dp(6),dp(5),dp(14)) }
   host.addView(navigation,LinearLayout.LayoutParams(-1,dp(88)))
   setContentView(host)
   showTab(0)
@@ -128,7 +133,7 @@ class MainActivity : Activity() {
    navigation.addView(textView(title,13f).apply {
     gravity=android.view.Gravity.CENTER
     setTextColor(if(i==index)Color.WHITE else Color.LTGRAY)
-    setBackgroundColor(if(i==index)Color.rgb(75,75,78) else Color.TRANSPARENT)
+    background=if(i==index) rounded(Color.rgb(87,45,139),17) else rounded(Color.TRANSPARENT,17)
     setOnClickListener { albumFilter=null; searchText=""; showTab(i) }
    },LinearLayout.LayoutParams(0,-1,1f))
   }
@@ -143,7 +148,8 @@ class MainActivity : Activity() {
      val row=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
      pair.forEach { (name,items) ->
       val card=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(5),dp(5),dp(5),dp(14)); setOnClickListener { savedGridPosition=0; if(name=="Alle Videos") { showGrid(items,false) } else { albumFilter=name; showTab(0) } } }
-      val preview=ImageView(this).apply { scaleType=ImageView.ScaleType.CENTER_CROP; setBackgroundColor(Color.rgb(38,38,40)) }
+      val preview=ImageView(this).apply { scaleType=ImageView.ScaleType.CENTER_CROP; background=rounded(Color.rgb(32,28,47),15) }
+      preview.clipToOutline=true
       card.addView(preview,LinearLayout.LayoutParams(-1,dp(155)))
       card.addView(textView(name,16f).apply { setSingleLine(true); ellipsize=android.text.TextUtils.TruncateAt.END; setPadding(dp(3),dp(8),dp(3),0) })
       card.addView(textView(items.size.toString()+" Elemente",12f).apply { setTextColor(Color.LTGRAY); setPadding(dp(3),0,0,0) })
@@ -219,10 +225,10 @@ class MainActivity : Activity() {
   if(timeline) {
    val months=items.map { monthFormat.format(Date(it.second)) }
    val markers=months.withIndex().filter { it.index==0 || it.value!=months[it.index-1] }.map { it.value to it.index }
-   val side=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=android.view.Gravity.CENTER; setBackgroundColor(Color.rgb(25,25,27)) }
+   val side=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=android.view.Gravity.CENTER; background=rounded(Color.rgb(22,19,35),15) }
    val current=textView(markers.firstOrNull()?.first?:"Jahr\nMonat",11f).apply { gravity=android.view.Gravity.CENTER }
    side.addView(current,LinearLayout.LayoutParams(dp(74),dp(78)))
-   val seek=SeekBar(this).apply { rotation=270f; max=(markers.size-1).coerceAtLeast(0) }
+   val seek=SeekBar(this).apply { rotation=270f; max=(markers.size-1).coerceAtLeast(0); progressTintList=android.content.res.ColorStateList.valueOf(accent); thumbTintList=android.content.res.ColorStateList.valueOf(accent) }
    side.addView(seek,LinearLayout.LayoutParams(dp(74),dp(270)))
    seek.setOnSeekBarChangeListener(object:SeekBar.OnSeekBarChangeListener {
     override fun onProgressChanged(s:SeekBar?,value:Int,fromUser:Boolean) {
