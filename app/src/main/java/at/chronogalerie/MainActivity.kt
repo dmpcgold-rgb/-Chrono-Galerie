@@ -78,6 +78,23 @@ class MainActivity : Activity() {
   header.addView(textView("⌕",30f).apply { gravity=android.view.Gravity.CENTER; setOnClickListener { search() } },LinearLayout.LayoutParams(dp(48),dp(50)))
   header.addView(textView("⋮",28f).apply { gravity=android.view.Gravity.CENTER; setOnClickListener { menu() } },LinearLayout.LayoutParams(dp(36),dp(50)))
   host.addView(header)
+  val categories=LinearLayout(this).apply { gravity=android.view.Gravity.CENTER_VERTICAL; setPadding(dp(12),dp(5),dp(12),dp(9)) }
+  listOf("Fotos","Alben","Videos").forEachIndexed { i,label ->
+   val chip=textView(label,14f).apply {
+    gravity=android.view.Gravity.CENTER
+    background=rounded(if(i==0) Color.rgb(96,50,154) else Color.rgb(22,21,35),20)
+    setOnClickListener {
+     when(i) {
+      0 -> { albumFilter=null; searchText=""; showTab(0) }
+      1 -> showTab(1)
+      else -> { showTab(2); showGrid(allMedia.filter { videoUris.contains(it.first) },false) }
+     }
+    }
+   }
+   val params=LinearLayout.LayoutParams(0,dp(37),1f).apply { setMargins(dp(3),0,dp(3),0) }
+   categories.addView(chip,params)
+  }
+  host.addView(categories)
   galleryStatus=textView("Bilder werden geladen …",12f).apply { setTextColor(Color.rgb(195,181,216)); setPadding(dp(16),0,0,0) }
   host.addView(galleryStatus)
   galleryProgress=ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal).apply { max=100 }
@@ -120,7 +137,7 @@ class MainActivity : Activity() {
     allMedia=loaded
     videoUris=scannedVideos
     albums=albumMap
-    galleryStatus.text=loaded.size.toString()+" Medien · Neueste zuerst"
+    galleryStatus.text="Alle Medien    "+String.format(Locale.GERMAN,"%,d",loaded.size)+"   · Neueste zuerst"
     galleryProgress.progress=100
     galleryProgress.visibility=View.GONE
     showTab(activeTab)
@@ -129,13 +146,19 @@ class MainActivity : Activity() {
  }
  private fun showTab(index:Int) {
   activeTab=index; galleryBody.removeAllViews(); navigation.removeAllViews()
-  listOf("▧\nFotos","▣\nAlben","▤\nSammlungen","☰\nMenü").forEachIndexed { i,title ->
-   navigation.addView(textView(title,13f).apply {
+  val navIcons=listOf("▧","▱","▤","☰")
+  val navNames=listOf("Galerie","Alben","Sammlungen","Mehr")
+  navNames.forEachIndexed { i,name ->
+   val selected=i==index
+   val tab=LinearLayout(this).apply {
+    orientation=LinearLayout.VERTICAL
     gravity=android.view.Gravity.CENTER
-    setTextColor(if(i==index)Color.WHITE else Color.LTGRAY)
-    background=if(i==index) rounded(Color.rgb(87,45,139),17) else rounded(Color.TRANSPARENT,17)
+    background=if(selected) rounded(Color.rgb(87,45,139),18) else rounded(Color.TRANSPARENT,18)
     setOnClickListener { albumFilter=null; searchText=""; showTab(i) }
-   },LinearLayout.LayoutParams(0,-1,1f))
+   }
+   tab.addView(textView(navIcons[i],23f).apply { gravity=android.view.Gravity.CENTER; setTextColor(if(selected) Color.WHITE else Color.rgb(197,189,214)) })
+   tab.addView(textView(name,11f).apply { gravity=android.view.Gravity.CENTER; setTextColor(if(selected) Color.WHITE else Color.rgb(197,189,214)) })
+   navigation.addView(tab,LinearLayout.LayoutParams(0,-1,1f))
   }
   when(index) {
    0 -> showGrid(allMedia.filter { (albumFilter?.let { name -> albums[name]?.contains(it) == true } ?: true) && (searchText.isEmpty() || it.third.contains(searchText,true) || monthFormat.format(Date(it.second)).contains(searchText,true)) },true)
