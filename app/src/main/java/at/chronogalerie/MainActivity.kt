@@ -276,7 +276,24 @@ class MainActivity : Activity() {
    image.setImageDrawable(null)
    val id=++requestId
    executor.execute { try {
-    val bitmap=contentResolver.loadThumbnail(photo.first,android.util.Size(2000,2000),null)
+    val uri=photo.first
+    val bitmap=if(contentResolver.getType(uri)?.startsWith("video/")==true) {
+     contentResolver.loadThumbnail(uri,android.util.Size(1600,1600),null)
+    } else {
+     try {
+      val source=android.graphics.ImageDecoder.createSource(contentResolver,uri)
+      android.graphics.ImageDecoder.decodeBitmap(source) { decoder,info,_ ->
+       val width=info.size.width.coerceAtLeast(1)
+       val height=info.size.height.coerceAtLeast(1)
+       var sample=1
+       while(width/sample>4096 || height/sample>4096 || width.toLong()*height.toLong()/(sample.toLong()*sample)>16000000L) sample*=2
+       decoder.setTargetSampleSize(sample)
+       decoder.allocator=android.graphics.ImageDecoder.ALLOCATOR_SOFTWARE
+      }
+     } catch(_:Exception) {
+      contentResolver.loadThumbnail(uri,android.util.Size(2000,2000),null)
+     }
+    }
     runOnUiThread { if(showingViewer && viewerToken==viewerGeneration && id==requestId) image.setImageBitmap(bitmap) }
    } catch(_:Exception) {} }
   }
