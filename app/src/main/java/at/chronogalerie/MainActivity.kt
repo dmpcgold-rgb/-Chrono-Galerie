@@ -259,6 +259,7 @@ class MainActivity : Activity() {
   var lastTouchX=0f
   var lastTouchY=0f
   var dragging=false
+  var switchingPhoto=false
   val pinch=android.view.ScaleGestureDetector(this,object:android.view.ScaleGestureDetector.SimpleOnScaleGestureListener() {
    override fun onScale(detector:android.view.ScaleGestureDetector):Boolean {
     image.scaleX=(image.scaleX*detector.scaleFactor).coerceIn(1f,4f)
@@ -301,8 +302,9 @@ class MainActivity : Activity() {
    pinch.onTouchEvent(event)
    if(pinch.isInProgress || event.pointerCount>1) { dragging=false; return@setOnTouchListener true }
    when(event.actionMasked) {
-    MotionEvent.ACTION_DOWN -> { startX=event.x; startY=event.y; lastTouchX=event.x; lastTouchY=event.y; dragging=false; true }
+    MotionEvent.ACTION_DOWN -> { if(switchingPhoto) return@setOnTouchListener true; startX=event.x; startY=event.y; lastTouchX=event.x; lastTouchY=event.y; dragging=false; true }
     MotionEvent.ACTION_MOVE -> {
+     if(switchingPhoto) return@setOnTouchListener true
      if(image.scaleX>1.01f) {
       val dx=event.x-lastTouchX
       val dy=event.y-lastTouchY
@@ -318,11 +320,25 @@ class MainActivity : Activity() {
      true
     }
     MotionEvent.ACTION_UP -> {
+     if(switchingPhoto) return@setOnTouchListener true
      val dx=event.x-startX
      val dy=event.y-startY
      if(image.scaleX<=1.01f && kotlin.math.abs(dx)>dp(65) && kotlin.math.abs(dx)>kotlin.math.abs(dy)*1.3f) {
       val next=currentIndex+if(dx<0)1 else -1
-      if(next in visiblePhotos.indices) { currentIndex=next; showPhoto(visiblePhotos[next]) }
+      if(next in visiblePhotos.indices) {
+       switchingPhoto=true
+       val direction=if(dx<0)-1 else 1
+       image.animate().cancel()
+       image.animate().translationX(direction*dp(110).toFloat()).alpha(0.25f).setDuration(110).withEndAction {
+        currentIndex=next
+        showPhoto(visiblePhotos[next])
+        image.translationX=(-direction*dp(90)).toFloat()
+        image.alpha=0.25f
+        image.animate().translationX(0f).alpha(1f).setDuration(180).withEndAction { switchingPhoto=false }.start()
+       }.start()
+      } else {
+       image.animate().translationX(0f).setDuration(130).start()
+      }
      } else if(!dragging && kotlin.math.abs(dx)<dp(20) && kotlin.math.abs(dy)<dp(20)) {
       actionsVisible=!actionsVisible
       bottomActions?.visibility=if(actionsVisible)View.VISIBLE else View.GONE
