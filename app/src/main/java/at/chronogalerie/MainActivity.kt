@@ -131,7 +131,7 @@ class MainActivity : Activity() {
   when(index) {
    0 -> showGrid(allMedia.filter { (albumFilter?.let { name -> albums[name]?.contains(it) == true } ?: true) && (searchText.isEmpty() || it.third.contains(searchText,true) || monthFormat.format(Date(it.second)).contains(searchText,true)) },true)
    1 -> {
-    val scroll=ScrollView(this).apply { fillViewport=true }
+    val scroll=ScrollView(this).apply { isFillViewport=true }
     val list=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(12),dp(12),dp(12),dp(20)) }
     list.addView(textView("Alben",26f).apply { setPadding(dp(8),0,0,dp(16)) })
     val albumList=albums.toList().sortedByDescending { it.second.size }
