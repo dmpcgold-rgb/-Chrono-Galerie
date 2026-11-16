@@ -253,7 +253,7 @@ class MainActivity : Activity() {
   var startY=0f
   var requestId=0
   val screen=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.BLACK); fitsSystemWindows=true }
-  val heading=textView("‹    "+format.format(Date(currentItem.second)),19f).apply { setPadding(dp(18),0,0,0); setOnClickListener { player.stopPlayback(); showingViewer=false; viewerGeneration++; setContentView(host); showTab(activeTab) } }
+  val heading=textView("‹    "+format.format(Date(currentItem.second)),19f).apply { setPadding(dp(18),0,0,0); setOnClickListener { showingViewer=false; viewerGeneration++; setContentView(host); showTab(activeTab) } }
   screen.addView(heading,LinearLayout.LayoutParams(-1,dp(60)))
   var actionsVisible=true
   var bottomActions:LinearLayout?=null
