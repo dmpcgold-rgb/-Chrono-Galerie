@@ -39,6 +39,7 @@ class MainActivity : Activity() {
  private var searchText = ""
  private var albumFilter: String? = null
  private var allMedia = listOf<Triple<android.net.Uri, Long, String>>()
+ private var videoUris = setOf<android.net.Uri>()
  private var albums = mapOf<String, List<Triple<android.net.Uri, Long, String>>>()
  private lateinit var host: LinearLayout
  private lateinit var galleryBody: FrameLayout
@@ -86,6 +87,7 @@ class MainActivity : Activity() {
   executor.execute {
    val loaded=mutableListOf<Triple<android.net.Uri,Long,String>>()
    val albumMap=mutableMapOf<String,MutableList<Triple<android.net.Uri,Long,String>>>()
+   val scannedVideos=mutableSetOf<android.net.Uri>()
    val base=MediaStore.Files.getContentUri("external")
    val columns=arrayOf(MediaStore.Files.FileColumns._ID,MediaStore.Files.FileColumns.MEDIA_TYPE,MediaStore.Files.FileColumns.DISPLAY_NAME,MediaStore.Files.FileColumns.DATE_TAKEN,MediaStore.Files.FileColumns.DATE_MODIFIED,MediaStore.Files.FileColumns.BUCKET_DISPLAY_NAME)
    try {
@@ -96,6 +98,7 @@ class MainActivity : Activity() {
       val taken=cursor.getLong(3)
       val item=Triple(ContentUris.withAppendedId(base,cursor.getLong(0)),if(taken>0)taken else cursor.getLong(4)*1000,cursor.getString(2)?:"Medium")
       loaded.add(item)
+      if(cursor.getInt(1)==MediaStore.Files.FileColumns.MEDIA_TYPE_VIDEO) scannedVideos.add(item.first)
       albumMap.getOrPut(cursor.getString(5)?:"Andere"){ mutableListOf() }.add(item)
       scanned++
       if(scanned%50==0 || scanned==total) {
@@ -110,6 +113,7 @@ class MainActivity : Activity() {
    runOnUiThread {
     if(generation!=scanGeneration) return@runOnUiThread
     allMedia=loaded
+    videoUris=scannedVideos
     albums=albumMap
     galleryStatus.text=loaded.size.toString()+" Medien · Neueste zuerst"
     galleryProgress.progress=100
@@ -134,11 +138,11 @@ class MainActivity : Activity() {
     val scroll=ScrollView(this).apply { isFillViewport=true }
     val list=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(12),dp(12),dp(12),dp(20)) }
     list.addView(textView("Alben",26f).apply { setPadding(dp(8),0,0,dp(16)) })
-    val albumList=albums.toList().sortedByDescending { it.second.size }
+    val albumList=(listOf("Alle Videos" to allMedia.filter { videoUris.contains(it.first) })+albums.toList().sortedByDescending { it.second.size })
     albumList.chunked(2).forEach { pair ->
      val row=LinearLayout(this).apply { orientation=LinearLayout.HORIZONTAL }
      pair.forEach { (name,items) ->
-      val card=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(5),dp(5),dp(5),dp(14)); setOnClickListener { albumFilter=name; savedGridPosition=0; showTab(0) } }
+      val card=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setPadding(dp(5),dp(5),dp(5),dp(14)); setOnClickListener { savedGridPosition=0; if(name=="Alle Videos") { showGrid(items,false) } else { albumFilter=name; showTab(0) } } }
       val preview=ImageView(this).apply { scaleType=ImageView.ScaleType.CENTER_CROP; setBackgroundColor(Color.rgb(38,38,40)) }
       card.addView(preview,LinearLayout.LayoutParams(-1,dp(155)))
       card.addView(textView(name,16f).apply { setSingleLine(true); ellipsize=android.text.TextUtils.TruncateAt.END; setPadding(dp(3),dp(8),dp(3),0) })
@@ -166,7 +170,7 @@ class MainActivity : Activity() {
     list.addView(textView("Sammlungen",26f))
     val fav=allMedia.filter { favorites.getBoolean(it.first.toString(),false) }
     list.addView(textView("♥   Favoriten ("+fav.size+")",20f).apply { setPadding(0,dp(25),0,dp(25)); setOnClickListener { showGrid(fav,false) } })
-    list.addView(textView("▶   Videos",20f).apply { setPadding(0,dp(25),0,dp(25)); setOnClickListener { showGrid(allMedia.filter { contentResolver.getType(it.first)?.startsWith("video/")==true },false) } })
+    list.addView(textView("▶   Alle Videos ("+videoUris.size+")",20f).apply { setPadding(0,dp(25),0,dp(25)); setOnClickListener { showGrid(allMedia.filter { videoUris.contains(it.first) },false) } })
     galleryBody.addView(list)
    }
    else -> {
