@@ -281,23 +281,31 @@ class MainActivity : Activity() {
   var startX=0f
   var startY=0f
   var requestId=0
-  val screen=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.BLACK); fitsSystemWindows=true }
-  val heading=textView("‹    "+format.format(Date(currentItem.second)),19f).apply { setPadding(dp(18),0,0,0); setOnClickListener { showingViewer=false; viewerGeneration++; setContentView(host); showTab(activeTab) } }
+  val screen=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.rgb(11,11,20)); fitsSystemWindows=true }
+  val heading=textView("‹    "+currentItem.third,16f).apply { setSingleLine(true); ellipsize=android.text.TextUtils.TruncateAt.END; setPadding(dp(18),0,dp(18),0); setOnClickListener { showingViewer=false; viewerGeneration++; setContentView(host); showTab(activeTab) } }
   screen.addView(heading,LinearLayout.LayoutParams(-1,dp(60)))
   var actionsVisible=true
   var bottomActions:LinearLayout?=null
   val image=ImageView(this).apply { scaleType=ImageView.ScaleType.FIT_CENTER }
-  val mediaFrame=FrameLayout(this)
-  val player=VideoView(this).apply { visibility=View.GONE }
+  val mediaFrame=FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
+  val player=VideoView(this).apply { visibility=View.GONE; setOnClickListener { if(isPlaying) pause() else start() } }
   val playback=MediaController(this)
   player.setMediaController(playback)
   mediaFrame.addView(image,FrameLayout.LayoutParams(-1,-1))
   mediaFrame.addView(player,FrameLayout.LayoutParams(-1,-1))
+  val playOverlay=textView("▶",42f).apply {
+   gravity=android.view.Gravity.CENTER
+   background=rounded(Color.rgb(94,45,147),40)
+   setOnClickListener { if(player.isPlaying) { player.pause(); text="▶"; visibility=View.VISIBLE } else { player.start(); visibility=View.GONE } }
+  }
+  mediaFrame.addView(playOverlay,FrameLayout.LayoutParams(dp(76),dp(76),android.view.Gravity.CENTER))
+  playOverlay.visibility=View.GONE
   fun stopPlayback() {
    playback.hide()
    player.setOnPreparedListener(null)
    player.stopPlayback()
    player.visibility=View.GONE
+   playOverlay.visibility=View.GONE
    image.visibility=View.VISIBLE
   }
   player.setOnErrorListener { _,_,_ ->
@@ -325,16 +333,17 @@ class MainActivity : Activity() {
    currentItem=photo
    image.scaleX=1f; image.scaleY=1f; image.translationX=0f; image.translationY=0f; panX=0f; panY=0f
    refreshFavorite?.invoke()
-   heading.text="‹    "+format.format(Date(photo.second))
+   heading.text="‹    "+photo.third
    image.setImageDrawable(null)
    val id=++requestId
    if(videoUris.contains(photo.first)) {
     player.visibility=View.VISIBLE
     image.visibility=View.GONE
+    playOverlay.visibility=View.VISIBLE
     player.setOnPreparedListener { mp ->
      if(showingViewer && viewerToken==viewerGeneration && id==requestId) {
       mp.isLooping=false
-      player.start()
+      playOverlay.visibility=View.VISIBLE
       playback.show(3000)
      }
     }
@@ -415,7 +424,7 @@ class MainActivity : Activity() {
    }
   }
   screen.addView(mediaFrame,LinearLayout.LayoutParams(-1,0,1f))
-  val actions=LinearLayout(this)
+  val actions=LinearLayout(this).apply { background=rounded(Color.rgb(24,22,38),20); setPadding(dp(6),dp(5),dp(6),dp(8)) }
   bottomActions=actions
   val fav=textView(if(favorites.getBoolean(currentItem.first.toString(),false))"♥ Favorit" else "♡ Favorit").apply { gravity=android.view.Gravity.CENTER }
   refreshFavorite={ fav.text=if(favorites.getBoolean(currentItem.first.toString(),false))"♥ Favorit" else "♡ Favorit" }
