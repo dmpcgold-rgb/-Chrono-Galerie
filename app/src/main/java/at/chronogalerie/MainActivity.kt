@@ -249,10 +249,23 @@ class MainActivity : Activity() {
    val months=items.map { monthFormat.format(Date(it.second)) }
    val markers=months.withIndex().filter { it.index==0 || it.value!=months[it.index-1] }.map { it.value to it.index }
    val side=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=android.view.Gravity.CENTER; background=rounded(Color.rgb(22,19,35),15) }
-   val current=textView(markers.firstOrNull()?.first?:"Jahr\nMonat",11f).apply { gravity=android.view.Gravity.CENTER }
-   side.addView(current,LinearLayout.LayoutParams(dp(74),dp(78)))
-   val seek=SeekBar(this).apply { rotation=270f; max=(markers.size-1).coerceAtLeast(0); progressTintList=android.content.res.ColorStateList.valueOf(accent); thumbTintList=android.content.res.ColorStateList.valueOf(accent) }
-   side.addView(seek,LinearLayout.LayoutParams(dp(74),dp(270)))
+   val current=textView(markers.firstOrNull()?.first?:"Jahr\\nMonat",11f).apply { gravity=android.view.Gravity.CENTER; setTextColor(accent) }
+   side.addView(current,LinearLayout.LayoutParams(dp(74),dp(52)))
+   val timelineArea=FrameLayout(this)
+   val seek=SeekBar(this).apply {
+    rotation=270f
+    max=(markers.size-1).coerceAtLeast(0)
+    progressTintList=android.content.res.ColorStateList.valueOf(accent)
+    thumbTintList=android.content.res.ColorStateList.valueOf(accent)
+   }
+   timelineArea.addView(seek,FrameLayout.LayoutParams(dp(260),dp(48),android.view.Gravity.CENTER).apply { })
+   val years=markers.map { it.first.substringAfterLast(" ") }.distinct()
+   val labels=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; gravity=android.view.Gravity.CENTER }
+   years.take(7).forEach { year ->
+    labels.addView(textView(year,11f).apply { gravity=android.view.Gravity.CENTER; setTextColor(Color.rgb(205,195,225)) },LinearLayout.LayoutParams(-1,0,1f))
+   }
+   side.addView(labels,LinearLayout.LayoutParams(dp(74),dp(170)))
+   side.addView(timelineArea,LinearLayout.LayoutParams(dp(74),dp(270)))
    seek.setOnSeekBarChangeListener(object:SeekBar.OnSeekBarChangeListener {
     override fun onProgressChanged(s:SeekBar?,value:Int,fromUser:Boolean) {
      if(fromUser && markers.isNotEmpty()) { val pair=markers[(markers.lastIndex-value).coerceIn(0,markers.lastIndex)]; current.text=pair.first; grid.setSelection(pair.second) }
