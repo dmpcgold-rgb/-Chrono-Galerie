@@ -260,11 +260,17 @@ class MainActivity : Activity() {
   val image=ImageView(this).apply { scaleType=ImageView.ScaleType.FIT_CENTER }
   val mediaFrame=FrameLayout(this)
   val player=VideoView(this).apply { visibility=View.GONE }
-  val playback=MediaController(this).apply { setAnchorView(player) }
+  val playback=MediaController(this)
   player.setMediaController(playback)
   mediaFrame.addView(image,FrameLayout.LayoutParams(-1,-1))
   mediaFrame.addView(player,FrameLayout.LayoutParams(-1,-1))
-  fun stopPlayback() { player.stopPlayback(); player.visibility=View.GONE; image.visibility=View.VISIBLE }
+  fun stopPlayback() {
+   playback.hide()
+   player.setOnPreparedListener(null)
+   player.stopPlayback()
+   player.visibility=View.GONE
+   image.visibility=View.VISIBLE
+  }
   player.setOnErrorListener { _,_,_ ->
    android.widget.Toast.makeText(this@MainActivity,"Video kann nicht abgespielt werden",android.widget.Toast.LENGTH_SHORT).show()
    stopPlayback()
@@ -296,7 +302,6 @@ class MainActivity : Activity() {
    if(videoUris.contains(photo.first)) {
     player.visibility=View.VISIBLE
     image.visibility=View.GONE
-    player.setVideoURI(photo.first)
     player.setOnPreparedListener { mp ->
      if(showingViewer && viewerToken==viewerGeneration && id==requestId) {
       mp.isLooping=false
@@ -304,6 +309,7 @@ class MainActivity : Activity() {
       playback.show(3000)
      }
     }
+    player.setVideoURI(photo.first)
     return
    }
    executor.execute { try {
@@ -380,7 +386,6 @@ class MainActivity : Activity() {
    }
   }
   screen.addView(mediaFrame,LinearLayout.LayoutParams(-1,0,1f))
-  showPhoto(item)
   val actions=LinearLayout(this)
   bottomActions=actions
   val fav=textView(if(favorites.getBoolean(currentItem.first.toString(),false))"♥ Favorit" else "♡ Favorit").apply { gravity=android.view.Gravity.CENTER }
@@ -397,6 +402,8 @@ class MainActivity : Activity() {
    android.app.AlertDialog.Builder(this@MainActivity).setTitle(currentItem.third).setMessage("Aufnahme: "+format.format(Date(currentItem.second))+"\nDatei: "+currentItem.third+"\nTyp: "+(contentResolver.getType(currentItem.first)?:"Unbekannt")).setPositiveButton("OK",null).show()
   } },LinearLayout.LayoutParams(0,dp(60),1f))
   screen.addView(actions); setContentView(screen)
+  playback.setAnchorView(player)
+  showPhoto(item)
  }
  private fun search() {
   val input=EditText(this).apply { hint="Dateiname oder Monat"; setSingleLine(true) }
