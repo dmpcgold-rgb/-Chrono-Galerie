@@ -30,6 +30,7 @@ class MainActivity : Activity() {
  private val favorites by lazy { getSharedPreferences("favorites", MODE_PRIVATE) }
  private var activeTab = 0
  private var showingViewer = false
+ private var closeViewerPlayback: (() -> Unit)? = null
  private var gridColumns = 4
  private var savedGridPosition = 0
  private var viewerGeneration = 0
@@ -62,7 +63,7 @@ class MainActivity : Activity() {
   if (requestCode == 1) showGallery()
  }
  override fun onBackPressed() {
-  if (showingViewer) { showingViewer=false; viewerGeneration++; setContentView(host); showTab(activeTab) }
+  if (showingViewer) { closeViewerPlayback?.invoke(); closeViewerPlayback=null; showingViewer=false; viewerGeneration++; setContentView(host); showTab(activeTab) }
   else if (activeTab != 0 || albumFilter != null || searchText.isNotEmpty()) { albumFilter=null; searchText=""; showTab(0) }
   else super.onBackPressed()
  }
@@ -299,17 +300,36 @@ class MainActivity : Activity() {
   var startY=0f
   var requestId=0
   val screen=LinearLayout(this).apply { orientation=LinearLayout.VERTICAL; setBackgroundColor(Color.rgb(11,11,20)); fitsSystemWindows=true }
-  val heading=textView("‹    "+currentItem.third,16f).apply { setSingleLine(true); ellipsize=android.text.TextUtils.TruncateAt.END; setPadding(dp(18),0,dp(18),0); setOnClickListener { showingViewer=false; viewerGeneration++; setContentView(host); showTab(activeTab) } }
+  val heading=textView("‹    "+currentItem.third,16f).apply { setSingleLine(true); ellipsize=android.text.TextUtils.TruncateAt.END; setPadding(dp(18),0,dp(18),0); setOnClickListener { onBackPressed() } }
   screen.addView(heading,LinearLayout.LayoutParams(-1,dp(60)))
   var actionsVisible=true
   var bottomActions:LinearLayout?=null
   val image=ImageView(this).apply { scaleType=ImageView.ScaleType.FIT_CENTER }
   val mediaFrame=FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
-  val player=VideoView(this).apply { visibility=View.GONE; setOnClickListener { if(isPlaying) pause() else start() } }
+  // Never claim audio focus merely because a video was opened while swiping.
+  // This keeps music/YouTube playing in the background until the user chooses otherwise.
+  var videoMuted=true
+  var preparedPlayer:android.media.MediaPlayer?=null
+  val player=VideoView(this).apply {
+   visibility=View.GONE
+   if(Build.VERSION.SDK_INT>=26) setAudioFocusRequest(android.media.AudioManager.AUDIOFOCUS_NONE)
+  }
   val playback=MediaController(this)
   player.setMediaController(playback)
   mediaFrame.addView(image,FrameLayout.LayoutParams(-1,-1))
   mediaFrame.addView(player,FrameLayout.LayoutParams(-1,-1))
+  val muteButton=textView("🔇 Lautlos",14f).apply {
+   gravity=android.view.Gravity.CENTER
+   background=rounded(Color.rgb(70,42,110),18)
+   setPadding(dp(12),0,dp(12),0)
+   visibility=View.GONE
+   setOnClickListener {
+    videoMuted=!videoMuted
+    preparedPlayer?.setVolume(if(videoMuted) 0f else 1f,if(videoMuted) 0f else 1f)
+    text=if(videoMuted) "🔇 Lautlos" else "🔊 Ton an"
+   }
+  }
+  mediaFrame.addView(muteButton,FrameLayout.LayoutParams(dp(125),dp(42),android.view.Gravity.TOP or android.view.Gravity.END).apply { setMargins(0,dp(14),dp(14),0) })
   val playOverlay=textView("▶",42f).apply {
    gravity=android.view.Gravity.CENTER
    background=rounded(Color.rgb(94,45,147),40)
@@ -320,11 +340,14 @@ class MainActivity : Activity() {
   fun stopPlayback() {
    playback.hide()
    player.setOnPreparedListener(null)
+   preparedPlayer=null
    player.stopPlayback()
    player.visibility=View.GONE
    playOverlay.visibility=View.GONE
+   muteButton.visibility=View.GONE
    image.visibility=View.VISIBLE
   }
+  closeViewerPlayback={ stopPlayback() }
   player.setOnErrorListener { _,_,_ ->
    android.widget.Toast.makeText(this@MainActivity,"Video kann nicht abgespielt werden",android.widget.Toast.LENGTH_SHORT).show()
    stopPlayback()
@@ -357,9 +380,13 @@ class MainActivity : Activity() {
     player.visibility=View.VISIBLE
     image.visibility=View.GONE
     playOverlay.visibility=View.VISIBLE
+    muteButton.visibility=View.VISIBLE
+    muteButton.text=if(videoMuted) "🔇 Lautlos" else "🔊 Ton an"
     player.setOnPreparedListener { mp ->
      if(showingViewer && viewerToken==viewerGeneration && id==requestId) {
       mp.isLooping=false
+      preparedPlayer=mp
+      mp.setVolume(if(videoMuted) 0f else 1f,if(videoMuted) 0f else 1f)
       playOverlay.visibility=View.VISIBLE
       playback.show(3000)
      }
